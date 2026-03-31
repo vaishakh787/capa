@@ -31,6 +31,7 @@ from capa.features.address import (
 )
 from capa.features.extractors.vmray import VMRayAnalysis, VMRayMonitorThread, VMRayMonitorProcess
 from capa.features.extractors.vmray.models import PARAM_TYPE_STR, ParamList, FunctionCall
+from capa.features.extractors.vmray.noise import get_relevant_monitor_ids  # <-- added
 from capa.features.extractors.base_extractor import (
     CallHandle,
     SampleHashes,
@@ -88,6 +89,8 @@ class VMRayExtractor(DynamicFeatureExtractor):
         yield from self.global_features
 
     def get_processes(self) -> Iterator[ProcessHandle]:
+        relevant: frozenset[int] = get_relevant_monitor_ids(self.analysis)  # <-- added
+
         for monitor_process in self.analysis.monitor_processes.values():
             # skip invalid/incomplete monitor process entries, see #2807
             if monitor_process.pid == 0 or not monitor_process.filename:
@@ -98,6 +101,15 @@ class VMRayExtractor(DynamicFeatureExtractor):
                     monitor_process.monitor_id,
                 )
                 continue
+
+            # skip processes outside the submission subtree (sandbox noise)  # <-- added
+            if monitor_process.monitor_id not in relevant:                    # <-- added
+                logger.debug(                                                 # <-- added
+                    "skipping noise process: monitor_id=%d  image_name=%s",  # <-- added
+                    monitor_process.monitor_id,                               # <-- added
+                    monitor_process.image_name,                               # <-- added
+                )                                                             # <-- added
+                continue                                                      # <-- added
 
             address: ProcessAddress = ProcessAddress(pid=monitor_process.pid, ppid=monitor_process.ppid)
             yield ProcessHandle(address, inner=monitor_process)

@@ -83,6 +83,12 @@ def extract_call_features(ph: ProcessHandle, th: ThreadHandle, ch: CallHandle) -
         for param in call.params_in.params:
             yield from get_call_param_features(param, ch)
 
+    # extract return values from output parameters as features
+    # params_out is parsed by models.py but was not previously used for feature extraction
+    if call.params_out:
+        for param in call.params_out.params:
+            yield from get_call_param_features(param, ch)
+
     for name in capa.features.extractors.helpers.generate_symbols("", call.name):
         yield API(name), ch.address
 
